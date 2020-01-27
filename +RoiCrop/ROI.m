@@ -63,6 +63,7 @@ classdef ROI < RoiCrop.BaseObject
         function resetFigure(obj)
             % recreate the axes and the image object (GUI)
             obj.ax = axes();
+            obj.ax.DataAspectRatioMode = 'manual';
             obj.imageObj = image(obj.ax, obj.img);
         end
         
@@ -93,10 +94,24 @@ classdef ROI < RoiCrop.BaseObject
             ip.parse(varargin{:});
             params = ip.Results;
        end
-       
+       function boxUpdate(src, evt)
+           disp(['ROI moving previous position: ' mat2str(evt.PreviousPosition)]);
+           newPos = evt.CurrentPosition;
+           xmin = ceil(newPos(1));
+           ymin = ceil(newPos(2));
+           width  = ceil(newPos(3));
+           height = ceil(newPos(4));
+           
+           label = sprintf('ROI_(%d, %d). Width: %d, height %d', ...
+                            xmin, ymin, width, height);
+           src.Label = label;
+           
+       end
        function output = trimRectCell(rectCell)
            % Helper of trim
-           output = rectCell(cellfun(@isvalid,rectCell));
+           funcRect = @(x)(isa(x, RoiCrop.ROI.CLASSNAME_RECT));
+           rectCell = rectCell(cellfun(funcRect, rectCell));
+           output = rectCell(cellfun(@isvalid, rectCell));
        end
        
        function [output] = resizeBbox(bbox, scaling)
@@ -210,13 +225,16 @@ classdef ROI < RoiCrop.BaseObject
            end
            for ii = 1: limit
                obj.focus();
+               pause();
                label = sprintf('ROI_%d', ii);
                rect = drawrectangle(obj.ax, ...
                                     'Label', label, ...
                                     'Color',[1 0 0]);
+               addlistener(rect,'MovingROI',@RoiCrop.ROI.boxUpdate);
+               addlistener(rect,'ROIMoved',@RoiCrop.ROI.boxUpdate);                 
                obj.addRect(rect)
                % continue by enter
-               pause();
+               
            end
            % trim the cell array in case some rectangles are deleted
            obj.trim();
@@ -229,7 +247,7 @@ classdef ROI < RoiCrop.BaseObject
            fnameGrp = [{obj.basename}, position_tag(:)'];
            fname = [join(fnameGrp, delimiter), '.', obj.outFormat];
            fname = join(fname, ''); 
-           fname = fname{1};
+           fname = fullfile(obj.targetFolder, fname{1});
        end
        
        function writeImgFile(obj, view, actualBbox)
